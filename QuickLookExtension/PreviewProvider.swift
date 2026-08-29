@@ -1,4 +1,5 @@
 import Foundation
+import os
 import Quartz
 import UniformTypeIdentifiers
 import MarkdownKit
@@ -9,10 +10,28 @@ import MarkdownKit
 /// window (design spec §3).
 class PreviewProvider: QLPreviewProvider {
 
+    private static let log = Logger(subsystem: "app.glance.Glance", category: "QuickLook")
     private static let contentSize = CGSize(width: 1000, height: 800)
+
+    /// File-based trace (os_log is not readable in all debugging setups, and
+    /// the sandbox blocks writing outside the container's own tmp).
+    private static func trace(_ line: String) {
+        log.info("providePreview: \(line, privacy: .public)")
+        let path = NSTemporaryDirectory() + "glance-ql-debug.log"
+        let stamped = "\(Date()) \(line)\n"
+        if let handle = FileHandle(forWritingAtPath: path) {
+            defer { try? handle.close() }
+            handle.seekToEndOfFile()
+            handle.write(Data(stamped.utf8))
+        } else {
+            try? Data("=== ql trace ===\n\(stamped)".utf8).write(to: URL(fileURLWithPath: path))
+        }
+    }
 
     func providePreview(for request: QLFilePreviewRequest) throws -> QLPreviewReply {
         let url = request.fileURL
+        let started = Date()
+        Self.trace("entered for \(url.lastPathComponent)")
 
         // Size guard mirroring FileService (the extension must not depend on
         // app code, so the constant is local on purpose).
@@ -20,6 +39,7 @@ class PreviewProvider: QLPreviewProvider {
         let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
         let size = (attributes[.size] as? NSNumber)?.intValue ?? 0
         if size > maxBytes {
+            Self.trace("refusing oversized file (\(size) bytes)")
             return Self.refusalReply(
                 title: "File too large",
                 message: "This file is larger than 20 MB, so Glance won't preview it."
@@ -28,6 +48,7 @@ class PreviewProvider: QLPreviewProvider {
 
         let data = try Data(contentsOf: url)
         guard let markdown = String(data: data, encoding: .utf8) else {
+            Self.trace("refusing non-UTF-8 file")
             return Self.refusalReply(
                 title: "Not a text file",
                 message: "This file is not valid UTF-8 text (it may be binary)."
@@ -39,6 +60,7 @@ class PreviewProvider: QLPreviewProvider {
             embedding: .inline,
             title: url.lastPathComponent
         )
+        Self.trace("rendered \(html.utf8.count) bytes in \(Date().timeIntervalSince(started))s — returning reply")
         return Self.htmlReply(html)
     }
 

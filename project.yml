@@ -14,6 +14,9 @@ settings:
     CODE_SIGN_IDENTITY: "-"
     CODE_SIGN_STYLE: Automatic
     DEVELOPMENT_TEAM: ""
+    # Keep get-task-allow out of signed entitlements (base injection adds it
+    # even in Release); system daemons reject debug-entitled extensions.
+    CODE_SIGN_INJECT_BASE_ENTITLEMENTS: NO
 
 packages:
   MarkdownKit:
@@ -78,9 +81,14 @@ targets:
             QLSupportedContentTypes:
               - net.daringfireball.markdown
               - public.markdown
+            # Required on macOS 14+ for the daemon to dispatch requests to
+            # data-based previews (we return HTML data, not a file URL).
+            QLIsDataBasedPreview: true
             QLSupportsSearchableItemsByDefault: false
           NSExtensionPointIdentifier: com.apple.quicklook.preview
-          NSExtensionMainClass: $(PRODUCT_MODULE_NAME).PreviewProvider
+          # QL hosts resolve the principal class via this key
+          # (NSExtensionMainClass is not consulted on current macOS).
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).PreviewProvider
     entitlements:
       path: QuickLookExtension/GlanceQuickLook.entitlements
       properties:
@@ -89,6 +97,11 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.glance.Glance.QuickLook
         SKIP_INSTALL: true
+        # Xcode 16+ splits Debug builds into a stub executable + debug dylib;
+        # PlugInKit can't resolve the principal class through that split, so
+        # quicklookd hosts the extension but providePreview is never called
+        # (Finder preview spins forever). Ship a plain Debug binary.
+        ENABLE_DEBUG_DYLIB: NO
 
   GlanceTests:
     type: bundle.unit-test

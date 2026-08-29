@@ -85,6 +85,34 @@ Open a `.md` file in Finder and press spacebar; the preview should show the
 rendered document. (Known limitation, same as all QL markdown extensions:
 relative images may not resolve inside Finder previews.)
 
+### Quick Look troubleshooting (macOS 26 findings)
+
+If Finder's spacebar preview spins forever or falls back to plain text, the
+extension metadata must match all of the following (verified against a known
+working extension, sbarex/QLMarkdown):
+
+- `NSExtensionPrincipalClass` (not `NSExtensionMainClass`) in the appex
+  Info.plist — current QL hosts resolve only this key.
+- `QLIsDataBasedPreview: true` in `NSExtensionAttributes` — required for
+  data-based previews (we return HTML data, not a file URL).
+- `ENABLE_DEBUG_DYLIB: NO` on the appex target — Xcode 16+ splits Debug
+  builds into a stub executable + debug dylib, which breaks the extension
+  handshake.
+- No `get-task-allow` in the *signed* entitlements (`CODE_SIGN_INJECT_BASE_ENTITLEMENTS: NO`);
+  the appex must carry only `com.apple.security.app-sandbox`.
+- Install the app to `/Applications`, register with
+  `pluginkit -a …/GlanceQuickLook.appex`, and restart the daemon with
+  `killall quicklookd`.
+
+**Signing gate:** on macOS 26 the daemon launches an ad-hoc–signed appex but
+never completes hosting it — `providePreview` is never called and Finder
+falls back to the generic text preview. A Developer ID–signed, notarized
+build (paid Apple Developer account) is required for the Finder preview to
+render. Everything up to that gate is verified: registration, user approval
+toggle (Login Items & Extensions), binary loading, and class resolution all
+pass, and the exact reply HTML is proven renderable by `tools/WebSmoke` in
+inline mode.
+
 ## Downloaded releases (ad-hoc signed)
 
 Release zips are ad-hoc signed. Remove the quarantine attribute before
