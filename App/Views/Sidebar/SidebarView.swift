@@ -15,7 +15,9 @@ struct SidebarView: View {
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
-                .padding([.horizontal, .top], 8)
+                .padding(.horizontal, 8)
+                .padding(.top, 8)
+                .padding(.bottom, 6)
                 .accessibilityIdentifier("sidebar-segment")
             }
 
