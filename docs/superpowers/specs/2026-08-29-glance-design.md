@@ -6,8 +6,8 @@
 ## 1. Summary
 
 Glance is a minimal, keyboard-friendly macOS markdown reader. It renders markdown
-read-only by default; a toolbar lock icon toggles to raw-source editing that saves
-back to the file. A built-in Quick Look extension makes **spacebar-in-Finder** show
+read-only by default; a toolbar read/edit toggle (eye ⇄ pencil, `⌘L`) switches to
+raw-source editing that saves back to the file. A built-in Quick Look extension makes **spacebar-in-Finder** show
 the same rendering as the app. Opens a single file or a folder of files; a sidebar
 navigates either the folder's files or the current document's heading outline.
 
@@ -19,9 +19,11 @@ navigates either the folder's files or the current document's heading outline.
 - Syntax-highlighted fenced code blocks
 - YAML front matter rendered as a compact key/value table (keys in document order)
 - Footnotes; math (`$…$` inline, `$$…$$` display); Mermaid diagrams
-- Read-only by default; lock-icon toggle to raw source editing; save in place
+- Read-only by default; an eye ⇄ pencil toolbar toggle switches to raw source
+  editing; save in place
 - Finder spacebar preview via a Quick Look Preview Extension with identical styling
-- Open a file or a folder (top-level `.md`/`.markdown` only); `↑/↓` file switching
+- Open a file or a folder (top-level `.md`/`.markdown` only); files in an
+  opened folder are listed in the sidebar Files segment and opened by click
 - Segmented sidebar: **Files** / **Outline** (see §5); Files segment hidden when a
   single file is open
 - Keyboard-first; light/dark follows the system setting; zero network access
@@ -30,7 +32,8 @@ navigates either the folder's files or the current document's heading outline.
 
 WYSIWYG or split-pane editing · recursive folder scanning · cross-file or in-file
 search · tabs · PDF/HTML export · Windows/Linux · any in-app spacebar behavior
-(space is a Finder gesture) · settings UI.
+(space is a Finder gesture) · keyboard file switching (users expect `↑/↓` to
+scroll the document) · settings UI.
 
 ## 3. Architecture
 
@@ -91,7 +94,6 @@ pipeline.js exposes:
   text — editing never touches the web pipeline; zoom applies to the rendered
   view only
 - `Sidebar`: `NavigationSplitView` with a segmented control (Files | Outline)
-- Transient filename overlay (volume-OSD style, fades) on `↑/↓` file switches
 
 ### Quick Look extension
 
@@ -122,7 +124,7 @@ Apple Developer account with notarized builds — a cost decision, not a redesig
 ### Window
 
 Title bar shows `filename` (single file) or `filename — folder`. Toolbar:
-sidebar toggle (leading), lock button (trailing).
+sidebar toggle (leading), read/edit button (trailing).
 
 ### Sidebar — segmented Files / Outline
 
@@ -133,23 +135,27 @@ sidebar toggle (leading), lock button (trailing).
 - `⌘1` / `⌘2` switch segments. When only a single file is open, the Files
   segment (and `⌘1`) is hidden entirely.
 
-### Lock button
+### Read/Edit button (mode toggle)
+
+The toolbar's trailing button is the mode toggle, built from SF Symbols:
 
 | State | Icon | Meaning |
 |---|---|---|
-| Reading (default) | `lock` (closed) | Rendered view; nothing editable |
-| Editing | `lock.open` | Raw source editor; standard edited-dot in close button |
-| File unwritable on disk | `lock` disabled, tooltip "File is read-only on disk" | Editing unavailable — the icon reflects real file permissions |
+| Reading (default) | `eye` | Rendered view; nothing editable |
+| Editing | `pencil` | Raw source editor; standard edited-dot in close button |
+| File unwritable on disk | `eye`, control disabled, tooltip "File is read-only on disk" | Viewing still works; pencil is unreachable — the control reflects real file permissions |
+
+A tooltip always states the current mode; `⌘L` (or clicking) toggles.
 
 ### Keyboard map
 
 | Key | Condition | Action |
 |---|---|---|
 | `⌘O` | always | Open file or folder |
-| `⌘L` | always (if editable) | Toggle lock / unlock |
+| `⌘L` | always (if file is writable) | Toggle read / edit mode |
 | `⌘S` | editing | Save |
-| `↑/↓` | reading (locked) | Previous / next file in folder (with filename overlay; no wrap-around at the ends) |
-| `↑/↓` | editing | Caret movement — file switching unavailable while dirty |
+| `↑/↓` | reading | Scroll the document up / down (native scroll) |
+| `↑/↓` | editing | Caret movement |
 | `⌘1/⌘2` | folder open | Sidebar segment: Files / Outline |
 | `⌘+ / ⌘− / ⌘0` | reading | Zoom rendered text |
 | `⌘W` | always | Close window |
@@ -166,14 +172,14 @@ sidebar toggle (leading), lock button (trailing).
 
 Transitions:
 
-- **Open file** → locked (always, even if previously edited)
-- **Locked → editing** (`⌘L`, click lock): swap webview for source editor
+- **Open file** → reading (always, even if previously edited)
+- **Reading → editing** (`⌘L`, click the eye/pencil button): swap webview for
+  source editor
 - **Editing → save** (`⌘S`): write to disk; before writing, compare stored
   mtime — if the file changed on disk, prompt *Overwrite / Reload / Cancel*
-- **Editing → locked, window close, or clicking another file in the Files
-  segment while dirty**: prompt *Save / Revert / Cancel*. (`↑/↓` never triggers
-  this — while editing they move the caret, and keyboard file switching is
-  simply unavailable until the document is clean.)
+- **Editing → reading, window close, or clicking another file in the Files
+  segment while dirty**: prompt *Save / Revert / Cancel*. There is no keyboard
+  file switching; the sidebar is the only way to change files within a folder.
 - **File > Revert to Saved**: available while dirty; discards edits and reloads
 
 ## 7. Error Handling
@@ -196,10 +202,10 @@ Transitions:
   mermaid container, heading anchor ids. Primary guard against rendering
   regressions.
 - **Swift XCTest:** `DocumentModel` (UTF-8/size guards, save/revert, mtime
-  conflict), outline payload parsing, lock state-machine transitions, folder
-  listing/sorting, segment-visibility rule.
-- **XCUITest smoke:** open sample → unlock → type → save → assert file changed
-  on disk; single-file window shows no Files segment.
+  conflict), outline payload parsing, read/edit state-machine transitions,
+  folder listing/sorting, segment-visibility rule.
+- **XCUITest smoke:** open sample → switch to edit → type → save → assert file
+  changed on disk; single-file window shows no Files segment.
 - **Quick Look:** scripted manual `qlmanage -p sample.md` check each release.
 - **CI (GitHub Actions, macOS runner):** typecheck/tests/build on every push;
   release workflow on `v*` tags builds an ad-hoc-signed, zipped `.app` and
