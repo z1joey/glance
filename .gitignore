@@ -16,3 +16,4 @@ node_modules/
 # Release artifacts
 *.zip
 *.dSYM
+*.dmg

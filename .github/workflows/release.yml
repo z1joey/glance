@@ -7,9 +7,12 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref }}
+
 jobs:
   release:
-    name: Build and attach app bundle
+    name: Build and publish macOS DMG
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -24,28 +27,33 @@ jobs:
             -derivedDataPath build/release \
             build CODE_SIGN_IDENTITY="-" CODE_SIGNING_REQUIRED=YES | tail -20
 
-      - name: Zip app bundle
+      - name: Verify tag matches app version
         run: |
-          APP=$(find build/release -maxdepth 2 -name "Glance.app" -type d | head -1)
-          echo "App: $APP"
-          # verify the Quick Look extension is embedded
+          APP="$(pwd)/build/release/Build/Products/Release/Glance.app"
+          version="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$APP/Contents/Info.plist")"
+          echo "App version: $version, tag: $GITHUB_REF_NAME"
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match app version v$version"
+            exit 1
+          fi
+
+      - name: Build DMG
+        run: |
+          APP="$(pwd)/build/release/Build/Products/Release/Glance.app"
+          # the Quick Look extension must be embedded
           test -d "$APP/Contents/PlugIns/GlanceQuickLook.appex"
-          ditto -c -k --keepParent "$APP" "Glance-${{ github.ref_name }}.zip"
+          version="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$APP/Contents/Info.plist")"
+          mkdir -p build/dmg
+          cp -R "$APP" build/dmg/Glance.app
+          ln -s /Applications build/dmg/Applications
+          hdiutil create -volname "Glance" -srcfolder build/dmg -ov -format UDZO "Glance-$version.dmg"
 
-      - name: Attach to GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: Glance-${{ github.ref_name }}.zip
-          body: |
-            Ad-hoc signed build. After unzipping, clear the quarantine flag:
-
-            ```
-            xattr -cr Glance.app
-            ```
-
-            If the Finder spacebar preview doesn't pick up the extension,
-            register it once:
-
-            ```
-            pluginkit -a Glance.app/Contents/PlugIns/GlanceQuickLook.appex
-            ```
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' build/dmg/Glance.app/Contents/Info.plist)"
+          notes="> This build is ad-hoc signed and not notarized, so macOS Gatekeeper warns on first launch — recent macOS may even say the app is damaged. It is not. Run \`xattr -cr /Applications/Glance.app\` once after installing, or use Open Anyway in System Settings → Privacy & Security.
+          >
+          > If the Finder spacebar preview doesn't pick up the Quick Look extension, register it once: \`pluginkit -a /Applications/Glance.app/Contents/PlugIns/GlanceQuickLook.appex\`."
+          gh release create "$GITHUB_REF_NAME" "Glance-$version.dmg" --title "$GITHUB_REF_NAME" --notes "$notes" --generate-notes

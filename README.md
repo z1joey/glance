@@ -46,17 +46,22 @@ makes **spacebar-in-Finder** show the same rendering as the app.
 
 ## Install
 
-Download the latest zip from
-[Releases](../../releases), unzip, and clear the quarantine flag:
+Download **`Glance-<version>.dmg`** from [Releases](../../releases) and open it:
 
-```sh
-xattr -cr Glance.app
-open Glance.app
-```
+1. Drag **Glance** into **Applications**.
+2. First launch: the build is ad-hoc signed and not notarized, so Gatekeeper
+   warns — recent macOS may even say the app is damaged. It is not. Either
+   run this once:
 
-Builds are ad-hoc signed; the app itself runs after `xattr -cr`. The Finder
-Quick Look preview additionally requires a Developer ID–signed, notarized
-build — see [Quick Look extension](#quick-look-extension).
+   ```sh
+   xattr -cr /Applications/Glance.app
+   ```
+
+   …or right-click the app → **Open** → **Open** (or System Settings →
+   Privacy & Security → **Open Anyway**).
+
+The Finder Quick Look preview additionally requires a Developer ID–signed,
+notarized build — see [Quick Look extension](#quick-look-extension).
 
 Or build from source (Xcode 15+, macOS 13+, Node 18+ for the JS tests):
 
