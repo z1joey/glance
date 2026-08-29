@@ -298,8 +298,11 @@ Transitions:
 - **Quick Look:** scripted manual `qlmanage -p sample.md` check each release.
 - **CI (GitHub Actions, macOS runner):** `npm test` in `MarkdownKit/JSTests/`,
   then `xcodebuild` typecheck/tests/build on every push; release workflow on
-  `v*` tags builds an ad-hoc-signed, zipped `.app` and attaches it to a GitHub
-  Release with `xattr -cr` instructions in the README.
+  `v*` tags builds the app scheme (Release, ad-hoc signed — the embedded QL
+  appex is signed inside-out as part of the build), packages a `.dmg` with
+  `hdiutil`, and attaches it to a GitHub Release with `xattr -cr` instructions
+  in the README. The tag must match the app's `MARKETING_VERSION` before a
+  release proceeds.
 
 ## 9. Future Work (explicitly deferred)
 
