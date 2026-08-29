@@ -22,9 +22,9 @@ struct FilesListView: View {
             get: { model.fileURL },
             set: { newValue in
                 guard let url = newValue, url != model.fileURL else { return }
-                model.requestLeavingEditing {
-                    Task { await model.openFileInFolder(url) }
-                }
+                // openFileInFolder routes the dirty check through the model's
+                // confirmation flow itself.
+                Task { await model.openFileInFolder(url) }
             }
         )
     }

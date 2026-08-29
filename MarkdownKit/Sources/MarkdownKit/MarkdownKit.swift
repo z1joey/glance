@@ -87,7 +87,7 @@ public enum MarkdownRenderer {
         )
         template = template.replacingOccurrences(
             of: "<!--GLANCE:SCRIPTS-->",
-            with: scripts(pipeline: pipeline, embedding: embedding)
+            with: try scripts(pipeline: pipeline, embedding: embedding)
         )
         return template
     }
@@ -130,7 +130,7 @@ public enum MarkdownRenderer {
         }
     }
 
-    private static func scripts(pipeline: String, embedding: AssetEmbedding) -> String {
+    private static func scripts(pipeline: String, embedding: AssetEmbedding) throws -> String {
         let vendor: [String]
         switch embedding {
         case .referenced, .hybrid:
@@ -138,9 +138,11 @@ public enum MarkdownRenderer {
                 "<script src=\"\(bundleURL(for: $0, subdir: "js/vendor"))\"></script>"
             }
         case .inline:
-            vendor = vendorScripts.map {
-                "<script>\(scriptSafe(try! resourceString($0, subdir: "js/vendor")))</script>"
-            }
+            // Thrown, not trapped: a missing vendor resource must surface to
+            // the host (e.g. the Quick Look refusal reply), like every other
+            // resource access in html(_:embedding:title:).
+            let sources = try vendorScripts.map { try resourceString($0, subdir: "js/vendor") }
+            vendor = sources.map { "<script>\(scriptSafe($0))</script>" }
         }
         // The pipeline always ships as an inline module: an inline module
         // script executes without a fetch, which is what lets it boot under

@@ -62,6 +62,13 @@ struct ReaderWindowView: View {
                     closeInterceptor?.performConfirmedClose()
                 }
             },
+            terminationPromptRequested: {
+                // Confirmed save/revert re-issues the quit; a failed save
+                // drops the continuation so the conflict dialog can run.
+                model.requestLeavingEditing {
+                    NSApp.terminate(nil)
+                }
+            },
             onInstalled: { closeInterceptor = $0 }
         )
     }
@@ -151,39 +158,28 @@ struct ReaderWindowView: View {
 
     // MARK: links
 
+    /// Non-web schemes the pipeline forwards so the OS opens them.
+    private static let externalAppSchemes: Set<String> = ["mailto", "tel", "sms"]
+
     /// Handles the pipeline's `openLink` posts: http(s) opens in the default
-    /// browser; relative `.md`/`.markdown` links open in Glance (spec §5).
+    /// browser, mailto/tel/sms go to the OS, and relative `.md`/`.markdown`
+    /// links open in Glance (spec §5).
     private func handleOpenLink(_ href: String) {
-        if let url = URL(string: href), url.scheme == "http" || url.scheme == "https" {
-            NSWorkspace.shared.open(url)
-            return
-        }
-        guard let target = resolveRelativeMarkdownLink(href) else { return }
-        let openInPlace: () -> Void
-        if model.hasFolder {
-            openInPlace = { Task { await model.openFileInFolder(target) } }
-        } else {
-            openInPlace = { Task { await model.openDocument(at: target) } }
-        }
-        model.requestLeavingEditing(then: openInPlace)
-    }
-
-    private func resolveRelativeMarkdownLink(_ href: String) -> URL? {
-        guard let base = model.baseURL else { return nil }
-        var path = href.split(separator: "#", maxSplits: 1).first.map(String.init) ?? href
-        path = path.split(separator: "?", maxSplits: 1).first.map(String.init) ?? path
-        guard let decoded = path.removingPercentEncoding else { return nil }
-
-        var target = base
-        for component in decoded.split(separator: "/") {
-            if component == ".." {
-                target.deleteLastPathComponent()
-            } else if component != "." && !component.isEmpty {
-                target.appendPathComponent(String(component))
+        if let url = URL(string: href), let scheme = url.scheme?.lowercased() {
+            if scheme == "http" || scheme == "https" || Self.externalAppSchemes.contains(scheme) {
+                NSWorkspace.shared.open(url)
+                return
             }
         }
-        guard FileManager.default.fileExists(atPath: target.path) else { return nil }
-        return target
+        guard let base = model.baseURL,
+              let target = LinkResolver.resolve(href, baseURL: base) else { return }
+        // openDocument/openFileInFolder route the dirty check through the
+        // model's confirmation flow themselves.
+        if model.hasFolder {
+            Task { await model.openFileInFolder(target) }
+        } else {
+            Task { await model.openDocument(at: target) }
+        }
     }
 
     // MARK: launch hooks (UI-test harness)

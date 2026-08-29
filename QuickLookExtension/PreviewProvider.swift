@@ -14,9 +14,11 @@ class PreviewProvider: QLPreviewProvider {
     private static let contentSize = CGSize(width: 1000, height: 800)
 
     /// File-based trace (os_log is not readable in all debugging setups, and
-    /// the sandbox blocks writing outside the container's own tmp).
+    /// the sandbox blocks writing outside the container's own tmp). The file
+    /// log is a debugging aid only — Release builds keep the os_log line.
     private static func trace(_ line: String) {
         log.info("providePreview: \(line, privacy: .public)")
+        #if DEBUG
         let path = NSTemporaryDirectory() + "glance-ql-debug.log"
         let stamped = "\(Date()) \(line)\n"
         if let handle = FileHandle(forWritingAtPath: path) {
@@ -26,6 +28,7 @@ class PreviewProvider: QLPreviewProvider {
         } else {
             try? Data("=== ql trace ===\n\(stamped)".utf8).write(to: URL(fileURLWithPath: path))
         }
+        #endif
     }
 
     func providePreview(for request: QLFilePreviewRequest) throws -> QLPreviewReply {

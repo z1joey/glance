@@ -4,6 +4,8 @@ import AppKit
 @main
 struct GlanceApp: App {
 
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+
     var body: some Scene {
         WindowGroup {
             ReaderWindowView()
@@ -11,6 +13,20 @@ struct GlanceApp: App {
         .commands {
             GlanceCommands()
         }
+    }
+}
+
+/// Gates ⌘Q (and logout/restart) on the same unsaved-changes confirmation the
+/// window-close path uses: the first dirty window's model prompts, and the
+/// termination is re-issued from the dialog's continuation once clean.
+final class AppDelegate: NSObject, NSApplicationDelegate {
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard let dirty = WindowCloseInterceptor.firstDirty(in: sender.windows) else {
+            return .terminateNow
+        }
+        dirty.terminationPromptRequested()
+        return .terminateCancel
     }
 }
 

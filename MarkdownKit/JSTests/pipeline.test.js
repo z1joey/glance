@@ -21,7 +21,7 @@ globalThis.katex = katex;
 globalThis.jsyaml = jsyaml;
 globalThis.hljs = hljs;
 
-const { render, activateMermaid, classifyLink } = await import('../Sources/MarkdownKit/Resources/js/pipeline.js');
+const { render, activateMermaid, classifyLink, wireLinks } = await import('../Sources/MarkdownKit/Resources/js/pipeline.js');
 
 import { describe, it, expect } from 'vitest';
 
@@ -228,5 +228,62 @@ describe('classifyLink', () => {
     ['mailto:a@b.c', 'other'],
   ])('classifies %s as %s', (href, expected) => {
     expect(classifyLink(href)).toBe(expected);
+  });
+});
+
+describe('wireLinks click handling', () => {
+  // Fakes the DOM event path and the WKWebView bridge: wireLinks is wired to
+  // a captured listener, clicks are dispatched by hand, and postMessage is
+  // observed through a stand-in for window.webkit.messageHandlers.glance.
+  function click(href) {
+    const posted = [];
+    let prevented = false;
+    const handlers = {};
+    const content = { addEventListener: (type, fn) => { handlers[type] = fn; } };
+    const anchor = { getAttribute: (name) => (name === 'href' ? href : null) };
+    const ev = {
+      target: { closest: (sel) => (sel === 'a' ? anchor : null) },
+      preventDefault: () => { prevented = true; },
+    };
+    globalThis.window = {
+      webkit: { messageHandlers: { glance: { postMessage: (p) => posted.push(p) } } },
+    };
+    try {
+      wireLinks(content, { getElementById: () => null });
+      handlers.click(ev);
+    } finally {
+      delete globalThis.window;
+    }
+    return { posted, prevented };
+  }
+
+  it('posts markdown links to the host and prevents navigation', () => {
+    const { posted, prevented } = click('notes.md');
+    expect(prevented).toBe(true);
+    expect(posted).toEqual([{ type: 'openLink', href: 'notes.md' }]);
+  });
+
+  it('posts external links to the host and prevents navigation', () => {
+    const { posted, prevented } = click('https://example.com');
+    expect(prevented).toBe(true);
+    expect(posted).toEqual([{ type: 'openLink', href: 'https://example.com' }]);
+  });
+
+  it('forwards mailto links to the host instead of dead-ending', () => {
+    const { posted, prevented } = click('mailto:a@b.c');
+    expect(prevented).toBe(true);
+    expect(posted).toEqual([{ type: 'openLink', href: 'mailto:a@b.c' }]);
+  });
+
+  it('forwards tel links to the host', () => {
+    const { posted, prevented } = click('tel:+15550100');
+    expect(prevented).toBe(true);
+    expect(posted).toEqual([{ type: 'openLink', href: 'tel:+15550100' }]);
+  });
+
+  it('leaves non-forwarded other links inert (no preventDefault, no message)', () => {
+    const { posted, prevented } = click('image.png');
+    expect(prevented).toBe(false);
+    expect(posted).toEqual([]);
   });
 });

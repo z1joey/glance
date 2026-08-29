@@ -189,19 +189,29 @@ function scrollToId(doc, id) {
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-function wireLinks(content, doc) {
+// Schemes handed to the host (opened via NSWorkspace); everything else in the
+// 'other' bucket — relative images, arbitrary custom schemes — stays inert.
+const EXTERNAL_APP_SCHEMES = /^(mailto|tel|sms):/i;
+
+export function wireLinks(content, doc) {
   content.addEventListener('click', (ev) => {
     const anchor = ev.target && ev.target.closest ? ev.target.closest('a') : null;
     if (!anchor) return;
-    const kind = classifyLink(anchor.getAttribute('href'));
-    if (kind === 'other') return; // e.g. mailto: — leave to the host
+    const href = anchor.getAttribute('href');
+    const kind = classifyLink(href);
+    if (kind === 'other') {
+      if (!EXTERNAL_APP_SCHEMES.test(href || '')) return; // e.g. image.png — leave inert
+      ev.preventDefault();
+      postMessage({ type: 'openLink', href });
+      return;
+    }
     ev.preventDefault();
     if (kind === 'anchor') {
-      const id = decodeURIComponent((anchor.getAttribute('href') || '').slice(1));
+      const id = decodeURIComponent((href || '').slice(1));
       scrollToId(doc, id);
     } else {
       // 'markdown' links are opened in Glance; 'external' ones in the browser.
-      postMessage({ type: 'openLink', href: anchor.getAttribute('href') });
+      postMessage({ type: 'openLink', href });
     }
   });
 }

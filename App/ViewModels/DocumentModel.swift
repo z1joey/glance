@@ -112,8 +112,35 @@ final class DocumentModel: ObservableObject {
 
     /// Open a file or a folder (⌘O, Finder, sidebar).
     /// A folder opens its first markdown file; a single file behaves as a
-    /// folder of one with no Files segment.
+    /// folder of one with no Files segment. When the current document has
+    /// unsaved changes, the Save/Revert/Cancel dialog runs first and the
+    /// open is abandoned if the save fails (spec §6/§7).
     func openDocument(at url: URL) async {
+        switch leavingEditing() {
+        case .proceed:
+            await performOpenDocument(at: url)
+        case .needsConfirmation:
+            requestLeavingEditing { [weak self] in
+                Task { await self?.performOpenDocument(at: url) }
+            }
+        }
+    }
+
+    /// Switch to another file of the open folder (sidebar Files segment,
+    /// markdown links). Same unsaved-changes confirmation as `openDocument`.
+    func openFileInFolder(_ url: URL) async {
+        guard hasFolder else { return }
+        switch leavingEditing() {
+        case .proceed:
+            await loadFile(at: url)
+        case .needsConfirmation:
+            requestLeavingEditing { [weak self] in
+                Task { await self?.loadFile(at: url) }
+            }
+        }
+    }
+
+    private func performOpenDocument(at url: URL) async {
         var isDirectory: ObjCBool = false
         let exists = FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
 
@@ -124,13 +151,6 @@ final class DocumentModel: ObservableObject {
             folderFiles = []
             await loadFile(at: url)
         }
-    }
-
-    /// Switch to another file of the open folder (sidebar Files segment).
-    /// The caller resolves any unsaved-changes confirmation first.
-    func openFileInFolder(_ url: URL) async {
-        guard hasFolder else { return }
-        await loadFile(at: url)
     }
 
     private func openFolder(at url: URL) async {
@@ -258,12 +278,15 @@ final class DocumentModel: ObservableObject {
         mode = .reading
     }
 
-    /// Dialog outcome "Save": write, then leave editing.
-    func saveChangesAndLeaveEditing() async {
+    /// Dialog outcome "Save": write, then leave editing. Returns true only
+    /// when the save succeeded; on a failed save the document stays in
+    /// editing so its conflict/failure dialog can be resolved.
+    @discardableResult
+    func saveChangesAndLeaveEditing() async -> Bool {
         let outcome = await save()
-        if outcome == .saved {
-            mode = .reading
-        }
+        guard outcome == .saved else { return false }
+        mode = .reading
+        return true
     }
 
     /// ⌘L / toolbar toggle. Reading → editing directly; editing → reading
@@ -299,8 +322,12 @@ final class DocumentModel: ObservableObject {
 
         switch resolution {
         case .save:
-            await saveChangesAndLeaveEditing()
-            continuation?()
+            // On a failed save (conflict, I/O) the continuation — closing the
+            // window, opening another file — must not run: the unsaved edits
+            // would be lost and the conflict dialog never surfaced.
+            if await saveChangesAndLeaveEditing() {
+                continuation?()
+            }
         case .revert:
             discardChangesAndLeaveEditing()
             continuation?()
