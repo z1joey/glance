@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  js-pipeline-tests:
+    name: Pipeline (vitest)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: npm test
+        working-directory: MarkdownKit/JSTests
+        run: |
+          npm ci
+          npm test
+
+  swift-tests:
+    name: Swift (xcodebuild)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.4.app || true
+      - name: Run unit tests
+        run: |
+          set -o pipefail
+          xcodebuild -project Glance.xcodeproj \
+            -scheme Glance \
+            -destination 'platform=macOS' \
+            -skip-testing:GlanceUITests \
+            test | tail -40
+      - name: Build app + Quick Look extension (Release)
+        run: |
+          set -o pipefail
+          xcodebuild -project Glance.xcodeproj \
+            -scheme Glance \
+            -configuration Release \
+            -destination 'platform=macOS' \
+            build | tail -20

@@ -1,0 +1,144 @@
+name: Glance
+options:
+  bundleIdPrefix: app.glance
+  deploymentTarget:
+    macOS: "13.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+
+settings:
+  base:
+    SWIFT_VERSION: "5.10"
+    MARKETING_VERSION: 0.1.0
+    CURRENT_PROJECT_VERSION: 1
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: ""
+    # Keep get-task-allow out of signed entitlements (base injection adds it
+    # even in Release); system daemons reject debug-entitled extensions.
+    CODE_SIGN_INJECT_BASE_ENTITLEMENTS: NO
+
+packages:
+  MarkdownKit:
+    path: MarkdownKit
+
+targets:
+  Glance:
+    type: application
+    platform: macOS
+    sources:
+      - App
+    dependencies:
+      - package: MarkdownKit
+      - target: GlanceQuickLook
+        embed: true
+        codeSign: true
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: Glance
+        CFBundleName: Glance
+        LSApplicationCategoryType: public.app-category.productivity
+        LSMinimumSystemVersion: "13.0"
+        NSHighResolutionCapable: true
+        NSHumanReadableCopyright: ""
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: Markdown
+            CFBundleTypeRole: Editor
+            LSHandlerRank: Owner
+            LSItemContentTypes:
+              - net.daringfireball.markdown
+        UTImportedTypeDeclarations:
+          - UTTypeIdentifier: net.daringfireball.markdown
+            UTTypeDescription: Markdown
+            UTTypeConformsTo:
+              - public.text
+              - public.plain-text
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - md
+                - markdown
+                - mdown
+                - mkdn
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.glance.Glance
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
+
+  GlanceQuickLook:
+    type: app-extension
+    platform: macOS
+    sources:
+      - QuickLookExtension
+    dependencies:
+      - package: MarkdownKit
+    info:
+      path: QuickLookExtension/Info.plist
+      properties:
+        CFBundleDisplayName: Glance Quick Look
+        NSExtension:
+          NSExtensionAttributes:
+            QLSupportedContentTypes:
+              - net.daringfireball.markdown
+              - public.markdown
+            # Required on macOS 14+ for the daemon to dispatch requests to
+            # data-based previews (we return HTML data, not a file URL).
+            QLIsDataBasedPreview: true
+            QLSupportsSearchableItemsByDefault: false
+          NSExtensionPointIdentifier: com.apple.quicklook.preview
+          # QL hosts resolve the principal class via this key
+          # (NSExtensionMainClass is not consulted on current macOS).
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).PreviewProvider
+    entitlements:
+      path: QuickLookExtension/GlanceQuickLook.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.glance.Glance.QuickLook
+        SKIP_INSTALL: true
+        # Xcode 16+ splits Debug builds into a stub executable + debug dylib;
+        # PlugInKit can't resolve the principal class through that split, so
+        # quicklookd hosts the extension but providePreview is never called
+        # (Finder preview spins forever). Ship a plain Debug binary.
+        ENABLE_DEBUG_DYLIB: NO
+
+  GlanceTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - GlanceTests
+    dependencies:
+      - target: Glance
+      - package: MarkdownKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.glance.GlanceTests
+        GENERATE_INFOPLIST_FILE: true
+
+  GlanceUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources:
+      - GlanceUITests
+    dependencies:
+      - target: Glance
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.glance.GlanceUITests
+        GENERATE_INFOPLIST_FILE: true
+        TEST_TARGET_NAME: Glance
+
+schemes:
+  Glance:
+    build:
+      targets:
+        Glance: all
+        GlanceQuickLook: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - GlanceTests
+        - GlanceUITests
