@@ -73,6 +73,35 @@ A resource bundle consumed by both targets. Contains:
 The app and the Quick Look extension run the identical HTML/CSS/JS, which is what
 guarantees the Finder preview looks the same as the app window.
 
+### Architectural pattern
+
+MVVM in the SwiftUI-idiomatic form, with stateless services:
+
+- **Views** are pure SwiftUI; they hold no document state and no I/O.
+- **`DocumentModel`** (`@MainActor` `ObservableObject`) is the view model for the
+  reader window and the single owner of mutable state: mode (`reading`/`editing`),
+  dirty flag, writability, raw text, mtime. The read/edit rules from §6 are
+  implemented here as a testable decision API — e.g. `leavingEditing() → .proceed
+  | .needsConfirmation` — so prompt behavior is unit-tested without UI.
+- **Services** are stateless and injected: `FileService` (load, UTF-8 and size
+  guards, save with mtime conflict detection, writability check) and
+  `FolderService` (top-level `.md`/`.markdown` listing and sorting).
+  `OutlineParser` is a pure function from the JS outline payload to
+  `[OutlineEntry]`.
+- **Menu shortcuts** (`⌘O`, `⌘L`, `⌘S`) are declared in `.commands` and routed to
+  the focused window's `DocumentModel` via `FocusedValue` — no global singletons.
+- **Concurrency:** UI state is `@MainActor`; services are `async`/`await`; no
+  background GCD queues directly in views.
+
+Rejected alternatives: TCA (dependency and ceremony outweigh a two-mode
+document app) and plain Model-View (the dirty-state prompts and mode rules need
+an explicit, testable owner — that's `DocumentModel`).
+
+`MarkdownKit` deliberately stays **webview-free and UI-free**: its whole public
+surface is "markdown text → styled HTML document (string + bundled resources)".
+WKWebView wrappers live in the app and the extension, not in the package — this
+keeps the renderer testable from Node and reusable by any future host.
+
 ### JS ↔ Swift contract
 
 pipeline.js exposes:
@@ -108,6 +137,65 @@ not resolve inside Finder previews; they render as broken-image placeholders.
 ad-hoc sign the app, run `qlmanage -p sample.md`, and confirm macOS loads the
 extension. If ad-hoc builds don't load extensions, the fallback is a paid
 Apple Developer account with notarized builds — a cost decision, not a redesign.
+
+### Code layout
+
+```
+glance/
+├── Glance.xcodeproj
+├── App/                              # target: Glance (app)
+│   ├── GlanceApp.swift               # @main, WindowGroup, .commands (⌘O/⌘L/⌘S)
+│   ├── ViewModels/
+│   │   └── DocumentModel.swift       # read/edit state machine, dirty, mtime
+│   ├── Views/
+│   │   ├── ReaderWindowView.swift    # webview-or-editor swap, alerts, toolbar wiring
+│   │   ├── MarkdownView.swift        # NSViewRepresentable → WKWebView + JS bridge
+│   │   ├── SourceEditorView.swift    # monospaced TextEditor
+│   │   └── Sidebar/
+│   │       ├── SidebarView.swift     # Files/Outline segmented control
+│   │       ├── FilesListView.swift
+│   │       └── OutlineListView.swift
+│   ├── Services/
+│   │   ├── FileService.swift
+│   │   ├── FolderService.swift
+│   │   └── OutlineParser.swift
+│   └── Models/
+│       └── OutlineEntry.swift
+├── QuickLookExtension/               # target: GlanceQuickLook (appex)
+│   └── PreviewProvider.swift         # QLPreviewProvider + WKWebView reply
+├── MarkdownKit/                      # local SPM package (both targets)
+│   ├── Package.swift
+│   ├── Sources/MarkdownKit/
+│   │   ├── MarkdownKit.swift         # render(markdown:) → HTML; resource access
+│   │   └── Resources/
+│   │       ├── template.html         # <script type=module src="js/pipeline.js">
+│   │       ├── theme.css
+│   │       └── js/
+│   │           ├── pipeline.js       # ES module; also imported by vitest
+│   │           └── vendor/           # committed: markdown-it, plugins,
+│   │                                 # highlight.js, KaTeX, mermaid, js-yaml
+│   └── JSTests/                      # Node suite (its own package.json)
+│       ├── package.json              # devDep: vitest
+│       └── pipeline.test.js          # HTML snapshot tests (spec §8)
+├── GlanceTests/                      # XCTest: DocumentModel, services, parser
+├── GlanceUITests/                    # XCUITest smoke (spec §8)
+├── samples/                          # sample .md docs incl. edge cases, for dev+QL checks
+├── docs/superpowers/specs/
+└── .github/workflows/                # ci.yml, release.yml
+```
+
+Dependency rules (enforced by target/package membership):
+
+| Module | May depend on |
+|---|---|
+| MarkdownKit | nothing (Foundation + committed web assets only) |
+| Glance (app) | MarkdownKit |
+| GlanceQuickLook (appex) | MarkdownKit **only** — never app code |
+| GlanceTests / GlanceUITests | app + MarkdownKit |
+
+`pipeline.js` is written as an ES module so the same file runs in the browser
+(`<script type="module">`) and under vitest in CI; vendored libraries are
+committed files loaded locally — no CDN, no bundler step.
 
 ## 4. File Handling
 
@@ -197,19 +285,21 @@ Transitions:
 
 ## 8. Testing
 
-- **Pipeline (vitest, in-repo, Node):** snapshot tests of pipeline.js output —
-  GFM features, highlighted code, front-matter table, footnotes, math markup,
-  mermaid container, heading anchor ids. Primary guard against rendering
-  regressions.
-- **Swift XCTest:** `DocumentModel` (UTF-8/size guards, save/revert, mtime
-  conflict), outline payload parsing, read/edit state-machine transitions,
-  folder listing/sorting, segment-visibility rule.
-- **XCUITest smoke:** open sample → switch to edit → type → save → assert file
-  changed on disk; single-file window shows no Files segment.
+- **Pipeline (vitest, `MarkdownKit/JSTests/`):** snapshot tests of pipeline.js
+  output — GFM features, highlighted code, front-matter table, footnotes, math
+  markup, mermaid container, heading anchor ids. Primary guard against
+  rendering regressions.
+- **Swift XCTest (`GlanceTests/`):** `DocumentModel` (UTF-8/size guards,
+  save/revert, mtime conflict, `leavingEditing()` decisions), outline payload
+  parsing, folder listing/sorting, segment-visibility rule.
+- **XCUITest smoke (`GlanceUITests/`):** open sample → switch to edit → type →
+  save → assert file changed on disk; single-file window shows no Files
+  segment.
 - **Quick Look:** scripted manual `qlmanage -p sample.md` check each release.
-- **CI (GitHub Actions, macOS runner):** typecheck/tests/build on every push;
-  release workflow on `v*` tags builds an ad-hoc-signed, zipped `.app` and
-  attaches it to a GitHub Release with `xattr -cr` instructions in the README.
+- **CI (GitHub Actions, macOS runner):** `npm test` in `MarkdownKit/JSTests/`,
+  then `xcodebuild` typecheck/tests/build on every push; release workflow on
+  `v*` tags builds an ad-hoc-signed, zipped `.app` and attaches it to a GitHub
+  Release with `xattr -cr` instructions in the README.
 
 ## 9. Future Work (explicitly deferred)
 
