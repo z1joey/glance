@@ -1,62 +1,92 @@
 # Glance
 
-A minimal, keyboard-friendly macOS markdown reader. Renders markdown
+<p align="center">
+  <img src="docs/screenshots/reading.png" alt="Glance reading a kitchen-sink markdown document, with the heading outline in the sidebar" width="800">
+</p>
+
+**Glance** is a free, open-source markdown reader for macOS. It renders markdown
 read-only by default; an eye ⇄ pencil toolbar toggle (`⌘L`) switches to raw
 source editing that saves back to the file. A built-in Quick Look extension
 makes **spacebar-in-Finder** show the same rendering as the app.
 
-Design spec: [docs/superpowers/specs/2026-08-29-glance-design.md](docs/superpowers/specs/2026-08-29-glance-design.md)
+- 🪶 Minimal and keyboard-first
+- 🌗 Light and dark follow the system
+- 🔌 Zero network access — strict offline CSP, all JS vendored and committed
 
-## Features (MVP)
+| ![Reading mode with heading outline](docs/screenshots/reading.png) | ![Raw source editing](docs/screenshots/editing.png) |
+|:---:|:---:|
+| **Reading** — rendered view with the heading outline | **Editing** — raw source, `⌘S` saves in place |
+
+| ![Folder navigation](docs/screenshots/folder.png) |
+|:---:|
+| **Folders** — top-level `.md` files in the sidebar, `⌘1` / `⌘2` switch segments |
+
+## Features
 
 - GFM rendering: tables, task lists, strikethrough, autolinks
 - Syntax-highlighted fenced code blocks
 - YAML front matter rendered as a compact key/value table (keys in document order)
 - Footnotes, math (`$…$` / `$$…$$` via KaTeX), Mermaid diagrams
-- Read-only by default; eye ⇄ pencil editing with save, revert, and
-  changed-on-disk conflict prompts
-- Open a file or a folder (`⌘O`); folder files in the sidebar **Files**
-  segment, document headings in **Outline** (`⌘1` / `⌘2`)
+- Eye ⇄ pencil editing with save, revert, and changed-on-disk conflict prompts
+- Open a file **or a folder** (`⌘O`); folder files in the sidebar **Files**
+  segment, document headings in **Outline**
 - Finder spacebar preview via a Quick Look preview extension with identical styling
-- Keyboard-first, light/dark follows the system, zero network access (strict
-  offline CSP; all JS vendored and committed)
 
-## Repository layout
+### Keyboard
+
+| Key | Condition | Action |
+|---|---|---|
+| `⌘O` | always | Open file or folder |
+| `⌘L` | writable file | Toggle read / edit mode |
+| `⌘S` | editing | Save |
+| `↑/↓` | reading | Scroll the document |
+| `⌘1` / `⌘2` | folder open | Sidebar segment: Files / Outline |
+| `⌘+` / `⌘−` / `⌘0` | reading | Zoom rendered text |
+| `⌘W` | always | Close window |
+
+## Install
+
+Download the latest zip from
+[Releases](../../releases), unzip, and clear the quarantine flag:
+
+```sh
+xattr -cr Glance.app
+open Glance.app
+```
+
+Builds are ad-hoc signed; the app itself runs after `xattr -cr`. The Finder
+Quick Look preview additionally requires a Developer ID–signed, notarized
+build — see [Quick Look extension](#quick-look-extension).
+
+Or build from source (Xcode 15+, macOS 13+, Node 18+ for the JS tests):
+
+```sh
+git clone <this repo> && cd glance
+xcodebuild -project Glance.xcodeproj -scheme Glance -configuration Debug build
+```
+
+After editing `project.yml`, regenerate the project with `xcodegen generate`
+(the generated `Glance.xcodeproj` is committed too, so this is optional).
+
+## Contributing
+
+Issues and pull requests are welcome! For larger changes, please open an
+issue first to discuss what you'd like to change.
 
 ```
 Glance.xcodeproj          generated from project.yml (xcodegen)
 App/                      Glance.app target (SwiftUI, MVVM)
-  GlanceApp.swift           @main, menus (⌘O / ⌘L / ⌘S / ⌘1 / ⌘2 / zoom)
-  ViewModels/DocumentModel  read/edit state machine, dirty, mtime conflicts
-  Views/                    reader window, WKWebView wrapper, editor, sidebar
-  Services/                 FileService, FolderService, OutlineParser
 QuickLookExtension/       GlanceQuickLook.appex (sandboxed, MarkdownKit only)
 MarkdownKit/              local SPM package: markdown text → styled HTML
   Sources/…/Resources/      template.html, theme.css, js/pipeline.js, js/vendor/
-  JSTests/                  vitest suite for pipeline.js (runs the same file as the app)
-GlanceTests/              XCTest: model, services, outline parsing
-GlanceUITests/            XCUITest smoke: open → edit → ⌘S → file changed
-samples/                  kitchen-sink.md, edge-cases.md for dev + QL checks
+  JSTests/                  vitest suite for pipeline.js
+GlanceTests/ GlanceUITests/  XCTest unit + UI smoke
+samples/                  kitchen-sink.md, edge-cases.md
 tools/vendor-js.sh        pinned JS vendoring (updates js/vendor/)
 tools/WebSmoke/           dev harness: renders a sample in a real WKWebView
 ```
 
-## Building
-
-Requirements: Xcode 15+ (developed on Xcode 26), macOS 13+, Node 18+ (JS
-tests only).
-
-```sh
-# regenerate the project after editing project.yml (committed xcodeproj works as-is)
-xcodegen generate
-
-# build the app + Quick Look extension
-xcodebuild -project Glance.xcodeproj -scheme Glance -configuration Debug build
-```
-
-The build is ad-hoc signed (`CODE_SIGN_IDENTITY="-"`) for local use.
-
-## Tests
+Useful before opening a PR:
 
 ```sh
 # pipeline tests (vitest — the primary rendering regression guard)
@@ -65,9 +95,8 @@ cd MarkdownKit/JSTests && npm install && npm test
 # Swift unit + UI tests
 xcodebuild -project Glance.xcodeproj -scheme Glance -destination 'platform=macOS' test
 
-# rendering smoke in a real WKWebView (hybrid and inline asset modes)
+# rendering smoke in a real WKWebView
 swift run --package-path tools/WebSmoke WebSmoke hybrid samples/kitchen-sink.md
-swift run --package-path tools/WebSmoke WebSmoke inline samples/kitchen-sink.md
 ```
 
 ## Quick Look extension
@@ -81,9 +110,10 @@ pluginkit -a "$APP/Contents/PlugIns/GlanceQuickLook.appex"   # register
 qlmanage -p samples/kitchen-sink.md                          # preview
 ```
 
-Open a `.md` file in Finder and press spacebar; the preview should show the
-rendered document. (Known limitation, same as all QL markdown extensions:
-relative images may not resolve inside Finder previews.)
+If the preview spins forever or falls back to plain text, see
+[Quick Look troubleshooting](#quick-look-troubleshooting-macos-26-findings).
+(Known limitation, same as all QL markdown extensions: relative images may
+not resolve inside Finder previews.)
 
 ### Quick Look troubleshooting (macOS 26 findings)
 
@@ -107,28 +137,10 @@ working extension, sbarex/QLMarkdown):
 **Signing gate:** on macOS 26 the daemon launches an ad-hoc–signed appex but
 never completes hosting it — `providePreview` is never called and Finder
 falls back to the generic text preview. A Developer ID–signed, notarized
-build (paid Apple Developer account) is required for the Finder preview to
-render. Everything up to that gate is verified: registration, user approval
-toggle (Login Items & Extensions), binary loading, and class resolution all
-pass, and the exact reply HTML is proven renderable by `tools/WebSmoke` in
-inline mode.
-
-## Downloaded releases (ad-hoc signed)
-
-Release zips are ad-hoc signed. Remove the quarantine attribute before
-opening:
-
-```sh
-unzip Glance.zip
-xattr -cr Glance.app
-open Glance.app
-```
-
-If the Finder preview never picks up the extension, register it once:
-
-```sh
-pluginkit -a /path/to/Glance.app/Contents/PlugIns/GlanceQuickLook.appex
-```
+build is required for the Finder preview to render. Everything up to that
+gate is verified: registration, user approval toggle (Login Items &
+Extensions), binary loading, and class resolution all pass, and the exact
+reply HTML is proven renderable by `tools/WebSmoke` in inline mode.
 
 ## Architecture notes
 
@@ -137,7 +149,7 @@ pluginkit -a /path/to/Glance.app/Contents/PlugIns/GlanceQuickLook.appex
   libraries come from `globalThis` (vendored classic `<script>` tags in the
   app, node_modules under vitest) so the identical file runs in both.
 - **Asset delivery** (verified empirically with `tools/WebSmoke`): under
-  `WKWebView.loadHTMLString`, classic `file:` scripts load fine but a module
+  `WKWebView.loadHTMLString`, classic `file:` scripts load fine, but a module
   script with a `file:` URL never executes (opaque origin). Hence:
   - app → `.hybrid`: vendor scripts referenced from the bundle, pipeline.js
     inlined as an inline module
@@ -158,3 +170,19 @@ pluginkit -a /path/to/Glance.app/Contents/PlugIns/GlanceQuickLook.appex
   the whole app while dirty does not prompt yet.
 - Relative images don't render in Finder previews (Quick Look host
   limitation).
+- The Finder Quick Look preview needs a notarized build (see above).
+
+## License
+
+[MIT](LICENSE) — free to use, modify, and share.
+
+## Acknowledgements
+
+Glance stands on the shoulders of excellent open-source software, vendored
+with pinned versions in
+[`MarkdownKit/Sources/MarkdownKit/Resources/js/vendor`](MarkdownKit/Sources/MarkdownKit/Resources/js/vendor/LICENSES.md):
+[markdown-it](https://github.com/markdown-it/markdown-it) and its plugin
+ecosystem, [KaTeX](https://github.com/KaTeX/KaTeX),
+[highlight.js](https://github.com/highlightjs/highlight.js),
+[mermaid](https://github.com/mermaid-js/mermaid), and
+[js-yaml](https://github.com/nodeca/js-yaml).
