@@ -9,6 +9,9 @@ struct SourceEditorView: View {
     var body: some View {
         TextEditor(text: $model.rawText)
             .font(.system(size: 14, weight: .regular, design: .monospaced))
+            .scrollContentBackground(.hidden)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 14)
             .accessibilityIdentifier("source-editor")
             .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
