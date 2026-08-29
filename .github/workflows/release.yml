@@ -1,0 +1,51 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and attach app bundle
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Release app (ad-hoc signed)
+        run: |
+          set -o pipefail
+          xcodebuild -project Glance.xcodeproj \
+            -scheme Glance \
+            -configuration Release \
+            -destination 'platform=macOS' \
+            -derivedDataPath build/release \
+            build CODE_SIGN_IDENTITY="-" CODE_SIGNING_REQUIRED=YES | tail -20
+
+      - name: Zip app bundle
+        run: |
+          APP=$(find build/release -maxdepth 2 -name "Glance.app" -type d | head -1)
+          echo "App: $APP"
+          # verify the Quick Look extension is embedded
+          test -d "$APP/Contents/PlugIns/GlanceQuickLook.appex"
+          ditto -c -k --keepParent "$APP" "Glance-${{ github.ref_name }}.zip"
+
+      - name: Attach to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Glance-${{ github.ref_name }}.zip
+          body: |
+            Ad-hoc signed build. After unzipping, clear the quarantine flag:
+
+            ```
+            xattr -cr Glance.app
+            ```
+
+            If the Finder spacebar preview doesn't pick up the extension,
+            register it once:
+
+            ```
+            pluginkit -a Glance.app/Contents/PlugIns/GlanceQuickLook.appex
+            ```

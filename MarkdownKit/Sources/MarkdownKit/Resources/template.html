@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--GLANCE:CSP-->
+<title><!--GLANCE:TITLE--></title>
+<!--GLANCE:STYLES-->
+<script>
+// If the renderer module never boots (script blocked or failed to parse),
+// reveal the plain-text fallback after a grace period.
+window.__glanceBooted = false;
+setTimeout(function () {
+  if (!window.__glanceBooted) {
+    var f = document.getElementById('glance-fallback');
+    if (f) { f.style.display = 'block'; }
+  }
+}, 2500);
+</script>
+</head>
+<body>
+<main class="glance-page">
+  <div id="glance-front-matter"></div>
+  <article id="glance-content" class="glance-content"></article>
+  <section id="glance-fallback">
+    <div class="glance-warning">
+      <strong>Glance could not start its renderer.</strong>
+      <span id="glance-fallback-message">Showing plain text instead.</span>
+    </div>
+    <pre id="glance-fallback-source"><!--GLANCE:FALLBACK--></pre>
+  </section>
+</main>
+<script type="application/json" id="glance-source"><!--GLANCE:SOURCE--></script>
+<!--GLANCE:SCRIPTS-->
+</body>
+</html>

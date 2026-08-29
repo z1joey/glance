@@ -1,2 +1,18 @@
 .superpowers/
+.mimosa/
 .DS_Store
+
+# Xcode / Swift
+DerivedData/
+xcuserdata/
+*.xcuserstate
+build/
+.build/
+.swiftpm/
+
+# Node (JSTests devDependencies only; vendored JS is committed)
+node_modules/
+
+# Release artifacts
+*.zip
+*.dSYM

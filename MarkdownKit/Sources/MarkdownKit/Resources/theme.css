@@ -1,0 +1,256 @@
+/*
+ * Glance — the single visual theme for rendered markdown.
+ * Light/dark follows the system via prefers-color-scheme; zoom works by
+ * scaling the root font size (all sizes are in rem).
+ */
+
+:root {
+  color-scheme: light dark;
+  --glance-zoom: 1;
+
+  --glance-bg: #ffffff;
+  --glance-fg: #1d1d1f;
+  --glance-muted: #6e6e73;
+  --glance-border: #e2e2e7;
+  --glance-accent: #0969da;
+  --glance-code-bg: #f5f5f7;
+  --glance-quote-bg: #f9f9fb;
+  --glance-warn-bg: #fff8e1;
+  --glance-warn-border: #e6b800;
+  --glance-error-bg: #fdeceb;
+  --glance-error-fg: #b3261e;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --glance-bg: #1e1e20;
+    --glance-fg: #e8e8ed;
+    --glance-muted: #98989f;
+    --glance-border: #3a3a3e;
+    --glance-accent: #6cb2ff;
+    --glance-code-bg: #2a2a2e;
+    --glance-quote-bg: #26262a;
+    --glance-warn-bg: #3a3117;
+    --glance-warn-border: #a8871a;
+    --glance-error-bg: #46201d;
+    --glance-error-fg: #ffb4ad;
+  }
+}
+
+html {
+  font-size: calc(16px * var(--glance-zoom, 1));
+}
+
+body {
+  margin: 0;
+  background: var(--glance-bg);
+  color: var(--glance-fg);
+  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-size: 1rem;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  word-wrap: break-word;
+}
+
+.glance-page {
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: 2.5rem 2rem 5rem;
+}
+
+/* ---------- headings, text ---------- */
+
+.glance-content h1, .glance-content h2, .glance-content h3,
+.glance-content h4, .glance-content h5, .glance-content h6 {
+  line-height: 1.25;
+  margin: 1.6em 0 0.6em;
+  font-weight: 650;
+  scroll-margin-top: 1rem;
+}
+.glance-content h1 { font-size: 1.9rem; margin-top: 0.4em; }
+.glance-content h2 { font-size: 1.5rem; border-bottom: 1px solid var(--glance-border); padding-bottom: 0.25rem; }
+.glance-content h3 { font-size: 1.22rem; }
+.glance-content h4 { font-size: 1.05rem; }
+.glance-content h5, .glance-content h6 { font-size: 0.95rem; color: var(--glance-muted); }
+
+.glance-content p { margin: 0.8em 0; }
+.glance-content a { color: var(--glance-accent); text-decoration: none; }
+.glance-content a:hover { text-decoration: underline; }
+
+.glance-content hr {
+  border: 0;
+  border-top: 1px solid var(--glance-border);
+  margin: 2em 0;
+}
+
+.glance-content img { max-width: 100%; border-radius: 4px; }
+
+/* ---------- lists, blockquote ---------- */
+
+.glance-content ul, .glance-content ol { padding-left: 1.6em; margin: 0.8em 0; }
+.glance-content li { margin: 0.25em 0; }
+
+.glance-content blockquote {
+  margin: 1em 0;
+  padding: 0.2em 1.1em;
+  border-left: 3px solid var(--glance-border);
+  background: var(--glance-quote-bg);
+  border-radius: 0 6px 6px 0;
+  color: var(--glance-muted);
+}
+.glance-content blockquote p { margin: 0.5em 0; }
+
+/* ---------- code ---------- */
+
+.glance-content code, .glance-content pre, .glance-front-matter td,
+#glance-fallback pre {
+  font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Monaco, monospace;
+}
+
+.glance-content code {
+  background: var(--glance-code-bg);
+  border-radius: 4px;
+  font-size: 0.875em;
+  padding: 0.15em 0.35em;
+}
+
+.glance-content pre {
+  background: var(--glance-code-bg);
+  border: 1px solid var(--glance-border);
+  border-radius: 8px;
+  line-height: 1.5;
+  overflow-x: auto;
+  padding: 0.9em 1.1em;
+  font-size: 0.875rem;
+}
+.glance-content pre code {
+  background: none;
+  border-radius: 0;
+  padding: 0;
+  font-size: 1em;
+}
+
+/* highlight.js token colors (hand-rolled to follow the system theme) */
+.hljs-comment, .hljs-quote { color: #6a737d; font-style: italic; }
+.hljs-keyword, .hljs-selector-tag, .hljs-meta-keyword { color: #d73a49; }
+.hljs-string, .hljs-regexp, .hljs-meta-string { color: #032f62; }
+.hljs-number, .hljs-literal, .hljs-built_in { color: #005cc5; }
+.hljs-title, .hljs-function .hljs-title, .hljs-title.function_ { color: #6f42c1; }
+.hljs-attr, .hljs-attribute, .hljs-variable, .hljs-template-variable { color: #22863a; }
+.hljs-type, .hljs-class .hljs-title, .hljs-title.class_ { color: #e36209; }
+.hljs-section, .hljs-name, .hljs-selector-id, .hljs-selector-class { color: #005cc5; font-weight: 600; }
+.hljs-tag { color: #22863a; }
+.hljs-deletion { color: #b31d28; background: #ffeef0; }
+.hljs-addition { color: #22863a; background: #f0fff4; }
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: 600; }
+
+@media (prefers-color-scheme: dark) {
+  .hljs-comment, .hljs-quote { color: #8b949e; }
+  .hljs-keyword, .hljs-selector-tag, .hljs-meta-keyword { color: #ff7b72; }
+  .hljs-string, .hljs-regexp, .hljs-meta-string { color: #a5d6ff; }
+  .hljs-number, .hljs-literal, .hljs-built_in { color: #79c0ff; }
+  .hljs-title, .hljs-function .hljs-title, .hljs-title.function_ { color: #d2a8ff; }
+  .hljs-attr, .hljs-attribute, .hljs-variable, .hljs-template-variable { color: #7ee787; }
+  .hljs-type, .hljs-class .hljs-title, .hljs-title.class_ { color: #ffa657; }
+  .hljs-section, .hljs-name, .hljs-selector-id, .hljs-selector-class { color: #79c0ff; }
+  .hljs-tag { color: #7ee787; }
+  .hljs-deletion { color: #ffdcd7; background: #67060c; }
+  .hljs-addition { color: #aff5b4; background: #033a16; }
+}
+
+/* ---------- tables ---------- */
+
+.glance-content table, .glance-front-matter table {
+  border-collapse: collapse;
+  margin: 1em 0;
+  max-width: 100%;
+}
+.glance-content th, .glance-content td,
+.glance-front-matter th, .glance-front-matter td {
+  border: 1px solid var(--glance-border);
+  padding: 0.4em 0.8em;
+  text-align: left;
+  vertical-align: top;
+}
+.glance-content th, .glance-front-matter th { font-weight: 600; background: var(--glance-quote-bg); }
+
+/* ---------- front matter ---------- */
+
+.glance-front-matter { margin-bottom: 1.5rem; }
+.glance-front-matter table { font-size: 0.85rem; width: 100%; margin: 0; }
+.glance-front-matter th {
+  width: 1%;
+  white-space: nowrap;
+  color: var(--glance-muted);
+  font-weight: 600;
+}
+.glance-front-matter td { word-break: break-word; }
+
+/* ---------- task lists ---------- */
+
+.glance-content .contains-task-list { padding-left: 0.4em; list-style: none; }
+.glance-content .task-list-item { margin: 0.3em 0; }
+.glance-content .task-list-item-checkbox { margin-right: 0.5em; margin-left: -0.4em; }
+
+/* ---------- footnotes ---------- */
+
+.glance-content .footnotes {
+  border-top: 1px solid var(--glance-border);
+  color: var(--glance-muted);
+  font-size: 0.9em;
+  margin-top: 2.5em;
+  padding-top: 0.8em;
+}
+.glance-content .footnote-ref a { text-decoration: none; }
+
+/* ---------- math, diagrams ---------- */
+
+.katex-display { overflow-x: auto; overflow-y: hidden; padding: 0.2em 0; }
+
+.glance-mermaid {
+  margin: 1.2em 0;
+  text-align: center;
+}
+.glance-mermaid svg { max-width: 100%; height: auto; }
+.glance-mermaid-error {
+  background: var(--glance-error-bg);
+  border: 1px solid var(--glance-error-fg);
+  border-radius: 6px;
+  color: var(--glance-error-fg);
+  display: inline-block;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.85rem;
+  margin: 0.4em auto;
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 0.6em 1em;
+  text-align: left;
+}
+
+/* ---------- fallback (renderer failed to boot) ---------- */
+
+#glance-fallback { display: none; }
+html.glance-booted #glance-fallback { display: none !important; }
+
+.glance-warning {
+  background: var(--glance-warn-bg);
+  border: 1px solid var(--glance-warn-border);
+  border-radius: 8px;
+  color: var(--glance-fg);
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+  padding: 0.7em 1em;
+}
+.glance-warning strong { display: block; margin-bottom: 0.15em; }
+
+#glance-fallback pre {
+  background: var(--glance-code-bg);
+  border: 1px solid var(--glance-border);
+  border-radius: 8px;
+  font-size: 0.85rem;
+  overflow-x: auto;
+  padding: 1em;
+  white-space: pre-wrap;
+}
